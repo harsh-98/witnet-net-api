@@ -1,5 +1,5 @@
-from .utils import sha256_proto
-from .constants import INITIAL_BLOCK_REWARD, HALVING_PERIOD
+from witnet_net_api.utils.utils import sha256_proto
+from witnet_net_api.utils.constants import INITIAL_BLOCK_REWARD, HALVING_PERIOD
 
 
 class Block():
@@ -82,7 +82,6 @@ class Block():
         l = 1
         for descriptor in self.block.txns.DESCRIPTOR.fields:
             value = getattr(self.block.txns, descriptor.name)
-            print(descriptor.name)
             if descriptor.name != "mint":
                 l += len(value)
         return ["" for _ in range(l)]
@@ -104,7 +103,7 @@ class Block():
         return {
             "number": self.epoch(),
             "parentHash": self.parent(),
-            "miner": self.short_miner(),
+            "miner": self.miner(),
             "difficulty": 0,
             "hash": self.hash(),
             "totalDifficulty": 0,
