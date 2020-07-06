@@ -5,8 +5,7 @@ from witnet_lib.utils import AttrDict
 def get_connection(local_addr, node_addr=""):
 
     # Setting config
-    config = AttrDict()
-    config.update({
+    config = AttrDict(**{
         "genesis_sec": 1592996400,
         "magic": 20787,
         "sender_addr": local_addr,

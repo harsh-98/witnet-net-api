@@ -1,0 +1,7 @@
+# https://github.com/editorconfig/editorconfig/wiki/EditorConfig-Properties
+# https://en.wikipedia.org/wiki/Indentation_style for selecting style
+# https://editorconfig.org/
+[*.py]
+indent_size = 4
+indent_style = tab
+quote_type = single

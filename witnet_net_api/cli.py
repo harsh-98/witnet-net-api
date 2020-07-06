@@ -1,31 +1,24 @@
 import threading
 import sys
-from argparse import ArgumentParser
+from .utils.logger import log
+import toml
+from argparse import ArgumentParser, FileType
 from witnet_lib.utils import AttrDict
-import logging
-
 from .client import Client
-# from witnet_api import __version__
-logger = logging.getLogger("api")
+import signal
 
 
 def main():
     try:
         _do_main()
     except Exception as err:
-        logger.fatal(err)
+        log.fatal(err)
         sys.exit(1)
 
 
 def _do_main():
     parser = setup_parser()
     args = parser.parse_args()
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG,
-                            format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
-    else:
-        logging.basicConfig(level=logging.WARN)
-
     if not hasattr(args, "func"):
         parser.print_help()
     else:
@@ -41,31 +34,48 @@ def setup_parser():
                         default=False)
 
     sub = subparsers.add_parser("run")
-    sub.add_argument("--ws", type=str, required=False,
-                     default="http://localhost:3000")
+    sub.add_argument("-c", "--config", type=FileType('r'), required=False,
+                     default="api.toml")
     sub.set_defaults(func=start)
     return parser
 
 
-def start_client(args, node_addr):
-    Client(node_id=node_addr, node_addr=node_addr,
-           ws=args.ws).run_client()
+clients = []
+
+
+def start_client(web_addr, node):
+    try:
+        client = Client(web_addr=web_addr, node=node)
+        clients.append(client)
+        client.run_client()
+    except Exception as e:
+        print("Exception", e)
+
+
+def interruptHandler(sig, frame):
+    print("KeyboardInterrupt (ID: {}) has been caught. Cleaning up...".format(sig))
+    # https://hackernoon.com/threaded-asynchronous-magic-and-how-to-wield-it-bba9ed602c32
+    for client in clients:
+        client.close()
+    import sys
+    sys.exit(0)
+
+
+signal.signal(signal.SIGINT, interruptHandler)
 
 
 def start(args):
-    # threads = []
-    # ['127.0.0.1:21337', '127.0.0.1:21339', '127.0.0.1:21341', '127.0.0.1:21343', '127.0.0.1:21345',
-    #    '127.0.0.1:21347', '127.0.0.1:21349', '127.0.0.1:21351', '127.0.0.1:21353', '127.0.0.1:21355']
-    # for node_addr in ['127.0.0.1:21337', '127.0.0.1:21339']:
-    #     threads.append(threading.Thread(
-    #         target=start_client, args=(args, node_addr)))
-    # for thread in threads:
-    #     thread.start()
-    # for thread in threads:
-    #     thread.join()
-    node_addr = "127.0.0.1:21337"
-    Client(node_id=node_addr, node_addr=node_addr,
-           ws=args.ws).run_client()
+    config = toml.load(args.config)
+    args.config = AttrDict(**config)
+
+    threads = []
+    for node in args.config.nodes:
+        threads.append(threading.Thread(
+            target=start_client, args=(args.config.web_addr, AttrDict(**node))))
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
 
 
 if __name__ == "__main__":
