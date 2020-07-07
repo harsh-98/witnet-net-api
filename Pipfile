@@ -5,6 +5,7 @@ python_version = '3.4'
 python-socketio = "*"
 witnet_lib = "==0.0.2"
 witpy = "*"
+python3-toml = "*"
 
 [dev-packages]
 detox = "*"

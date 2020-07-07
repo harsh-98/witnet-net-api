@@ -1,6 +1,6 @@
 ## Vscode
 
-Install python extension `ms-python.python` for python support in vscode and `njpwerner.autodocstring` for auto generation of docstring.
+Install python extension `ms-python.python` for python support in vscode and `njpwerner.autodocstring` for auto generation of docstring. Vscode [language specific config](https://code.visualstudio.com/docs/getstarted/settings#_language-specific-editor-settings).
 Follow tutorial at https://code.visualstudio.com/docs/python/python-tutorial#_prerequisites
 
 ### Linting

@@ -42,7 +42,7 @@ setup(
     url='https://github.com/harsh-98/witnet_lib',
     keywords='witnet blockchain lightclient proto',
     install_requires=[
-        "witnet_lib", "witpy", "python-socketio"
+        "witnet_lib", "witpy", "python-socketio", "python3-toml"
     ],
     classifiers=['Development Status :: 3 - Alpha',
                  'Programming Language :: Python :: 3.4',

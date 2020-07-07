@@ -1,11 +1,13 @@
-import threading
-import sys
-from .utils.logger import log
-import toml
 from argparse import ArgumentParser, FileType
-from witnet_lib.utils import AttrDict
-from .client import Client
 import signal
+import sys
+import threading
+import toml
+from witnet_lib.utils import AttrDict
+
+from .client import Client
+from .utils.logger import log
+from .utils.formats import TOML_FORMAT, NODE_FORMAT
 
 
 def main():
@@ -43,13 +45,15 @@ def setup_parser():
 clients = []
 
 
-def start_client(web_addr, node):
-    try:
-        client = Client(web_addr=web_addr, node=node)
-        clients.append(client)
-        client.run_client()
-    except Exception as e:
-        print("Exception", e)
+def start_client(web_addr, secret, attr):
+    node = {**NODE_FORMAT, **attr}
+    # try:
+    client = Client(web_addr=web_addr, secret=secret,
+                    node=AttrDict(**node))
+    clients.append(client)
+    client.run_client()
+    # except Exception as e:
+    #     print("Exception", e)
 
 
 def interruptHandler(sig, frame):
@@ -66,12 +70,13 @@ signal.signal(signal.SIGINT, interruptHandler)
 
 def start(args):
     config = toml.load(args.config)
+    config = {**TOML_FORMAT, **config}
     args.config = AttrDict(**config)
 
     threads = []
     for node in args.config.nodes:
         threads.append(threading.Thread(
-            target=start_client, args=(args.config.web_addr, AttrDict(**node))))
+            target=start_client, args=(args.config.web_addr, args.config.secret, node)))
     for thread in threads:
         thread.start()
     for thread in threads:

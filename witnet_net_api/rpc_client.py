@@ -23,7 +23,7 @@ class RPC():
                 decoded += resp.decode("utf-8")
                 decoded = json.loads(decoded)
                 if decoded.get('error', False):
-                    log.fatal("Error", decoded)
+                    log.fatal(decoded)
                     return {}
                 else:
                     return decoded['result']
@@ -44,6 +44,10 @@ class RPC():
 
     def get_mempool(self):
         self.send("getMempool")
+        return self.receive()
+
+    def active_reputation(self):
+        self.send("getReputationAll")
         return self.receive()
 
     def known_peers(self):

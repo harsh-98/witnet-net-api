@@ -79,12 +79,19 @@ class Block():
         Returns:
             list(string): list of the hashes of transactions
         """
-        l = 1
-        for descriptor in self.block.txns.DESCRIPTOR.fields:
-            value = getattr(self.block.txns, descriptor.name)
-            if descriptor.name != "mint":
-                l += len(value)
-        return ["" for _ in range(l)]
+        tx_set = {"transactions": []}
+        for descriptor in ['value_transfer_txns', 'data_request_txns', 'commit_txns', 'reveal_txns', 'tally_txns', 'mint']:
+            txs = getattr(self.block.txns, descriptor)
+            if descriptor != "mint":
+                tx_set[descriptor] = [sha256_proto(tx) for tx in txs]
+            else:
+                tx_set[descriptor] = [sha256_proto(txs)]
+            tx_set['transactions'].extend(tx_set[descriptor])
+        print(tx_set)
+        return tx_set
+
+    def get_RAD_hash(self):
+        return self.block.block_header.merkle_roots.dr_hash_merkle_root.SHA256.hex()
 
     def short_miner(self):
         """truncated hash of miner
@@ -107,7 +114,8 @@ class Block():
             "difficulty": 0,
             "hash": self.hash(),
             "totalDifficulty": 0,
-            "gasSpending": self.tx_fees(),
-            "transactions": self.get_txs(),
-            "uncles": [],
+            "txfees": self.tx_fees(),
+            # "uncles": [],
+            "RADHash": self.get_RAD_hash(),
+            **self.get_txs()
         }
