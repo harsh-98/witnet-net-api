@@ -3,9 +3,10 @@ python_version = '3.4'
 
 [packages]
 python-socketio = "*"
-witnet_lib = "==0.0.2"
+witnet_lib = "*"
 witpy = "*"
-python3-toml = "*"
+toml = "*"
+jsonschema = "*"
 
 [dev-packages]
 detox = "*"

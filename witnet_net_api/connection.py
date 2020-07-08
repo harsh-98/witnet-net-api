@@ -1,19 +1,11 @@
 from witnet_lib.witnet_client import WitnetClient
-from witnet_lib.utils import AttrDict
+from .utils.logger import log
 
 
-def get_connection(local_addr, node_addr=""):
-
+def get_connection(consensus_constants, node_addr=""):
     # Setting config
-    config = AttrDict(**{
-        "genesis_sec": 1592996400,
-        "magic": 20787,
-        "sender_addr": local_addr,
-        "time_per_epoch": 45,
-    })
-
-    client = WitnetClient(config)
+    log.debug(f"Node address: {node_addr}, {consensus_constants.__dict__}")
+    client = WitnetClient(consensus_constants)
     client.handshake(node_addr)
     return client
-
     # client.close()

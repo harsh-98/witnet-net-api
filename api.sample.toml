@@ -1,5 +1,12 @@
 web_addr = 'http://localhost:3000'
 secret = ""
+
+[consensus_constants]
+genesis_sec = 1592996400
+magic = 20787
+sender_addr = "127.0.0.1:21341"
+time_per_epoch = 45
+
 [[nodes]]
 p2p_addr = "127.0.0.1:21337"
 id = "node-one"

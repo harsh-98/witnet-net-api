@@ -2,12 +2,10 @@ from argparse import ArgumentParser, FileType
 import signal
 import sys
 import threading
-import toml
-from witnet_lib.utils import AttrDict
 
 from .client import Client
 from .utils.logger import log
-from .utils.formats import TOML_FORMAT, NODE_FORMAT
+from .utils.utils import load_config
 
 
 def main():
@@ -45,11 +43,11 @@ def setup_parser():
 clients = []
 
 
-def start_client(web_addr, secret, attr):
-    node = {**NODE_FORMAT, **attr}
+def start_client(cfg, node):
+    # TODO FIX
     # try:
-    client = Client(web_addr=web_addr, secret=secret,
-                    node=AttrDict(**node))
+    client = Client(web_addr=cfg.web_addr, secret=cfg.secret,
+                    consensus_constants=cfg.consensus_constants, node=node)
     clients.append(client)
     client.run_client()
     # except Exception as e:
@@ -69,14 +67,11 @@ signal.signal(signal.SIGINT, interruptHandler)
 
 
 def start(args):
-    config = toml.load(args.config)
-    config = {**TOML_FORMAT, **config}
-    args.config = AttrDict(**config)
-
+    args.config = load_config(args.config)
     threads = []
     for node in args.config.nodes:
         threads.append(threading.Thread(
-            target=start_client, args=(args.config.web_addr, args.config.secret, node)))
+            target=start_client, args=(args.config, node)))
     for thread in threads:
         thread.start()
     for thread in threads:

@@ -46,31 +46,41 @@ class APINamespace(socketio.ClientNamespace):
 
 class Client():
     NAMESPACE = "/api"
-    LOCAL_ADDR = "127.0.0.1:21341"
 
-    def __init__(self, web_addr="", secret="", node={}):
+    def __init__(self, web_addr="", secret="", consensus_constants=None, node=None):
+        log.debug(node.__dict__)
         self.node = node
-        log.debug(node)
+
         self.web_addr = web_addr
         self.secret = secret
-
-        self.blockchain = Blockchain()
-        self.connection = get_connection(
-            local_addr=self.LOCAL_ADDR, node_addr=self.node.p2p_addr)
-        self.sio = socketio.Client()
-        self.rpc_client = RPC(self.node.rpc_addr)
         self.last_rpc_call = None
         self.terminate = False
 
+        # set blockchain for maintaining  history
+        self.blockchain = Blockchain()
+        # connect to node at p2p port
+        self.connection = get_connection(
+            consensus_constants=consensus_constants, node_addr=self.node.p2p_addr)
+
+        # connect to web dashboard server
+        self.sio = socketio.Client()
+
+        # connect to rpc at rpc_addr
+        self.rpc_client = RPC(self.node.rpc_addr)
+
     def run_client(self):
-        attr = AttrDict(**{
+        attr = AttrDict({
             "contact": self.node.contact,
             "id": self.node.id,
             "addr": self.web_addr,
             "secret": self.node.secret if self.node.secret != "" else self.secret
         })
         self.sio.register_namespace(APINamespace(self.NAMESPACE, attr))
-        self.sio.connect(self.web_addr)
+        try:
+            self.sio.connect(self.web_addr)
+        except socketio.exceptions.ConnectionError as err:
+            log.error(err)
+            return
 
         self.last_rpc_call = datetime.now()
         # get data from witnet node
