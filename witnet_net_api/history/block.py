@@ -87,7 +87,6 @@ class Block():
             else:
                 tx_set[descriptor] = [sha256_proto(txs)]
             tx_set['transactions'].extend(tx_set[descriptor])
-        print(tx_set)
         return tx_set
 
     def get_RAD_hash(self):
