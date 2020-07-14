@@ -83,7 +83,11 @@ CONFIG = {
                 "secret": {
                     "type": "string",
                     "default": ""
-                }
+                },
+                "rpc_interval_sec": {
+                    "type": "number",
+                    "default": 120
+                },
             },
             "required": [
                 "p2p_addr", "id"

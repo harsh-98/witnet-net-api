@@ -126,7 +126,7 @@ class Client():
             self.rpc_calls()
 
     def rpc_calls(self):
-        if (datetime.now() - self.last_rpc_call).seconds > 10 and self.rpc_enabled():
+        if (datetime.now() - self.last_rpc_call).seconds > self.node.rpc_interval_sec and self.rpc_enabled():
             get_peers_cmd = self.connection.msg_handler.get_peers_cmd()
             msg = self.connection.msg_handler.serialize(get_peers_cmd)
             self.connection.tcp_handler.send(msg)
