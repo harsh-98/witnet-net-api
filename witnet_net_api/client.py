@@ -21,13 +21,11 @@ class APINamespace(socketio.ClientNamespace):
         super().__init__(namespace)
 
     def on_connect(self):
-        log.info(f'{self.args.id}: Connecting to [{self.args.addr}]')
-        host, port = resolve_url(self.args.addr)
+        log.info(f'{self.args.id}: Connecting to [{self.args.web_addr}]')
+        # host, port = resolve_url(self.args.node_addr)
         info = {
             **INFO_FORMAT,
             "contact": self.args.contact,
-            "ip": host,
-            "port": port,
             "name": self.args.id,
         }
         log.debug(f"Info msg: {info}")
@@ -38,7 +36,7 @@ class APINamespace(socketio.ClientNamespace):
         }, namespace=self.namespace)
 
     def on_disconnect(self):
-        log.info(f'{self.args.id}: Disconnecting from [{self.args.addr}]')
+        log.info(f'{self.args.id}: Disconnecting from [{self.args.web_addr}]')
 
     def on_data(self, data):
         pass
@@ -54,13 +52,21 @@ class Client():
         self.web_addr = web_addr
         self.secret = secret
         self.last_rpc_call = None
-        self.terminate = False
+        self.terminate = True
 
         # set blockchain for maintaining  history
         self.blockchain = Blockchain()
         # connect to node at p2p port
-        self.connection = get_connection(
-            consensus_constants=consensus_constants, node_addr=self.node.p2p_addr)
+        try:
+            self.connection = get_connection(
+                consensus_constants=consensus_constants, node_addr=self.node.p2p_addr)
+            self.terminate = False
+        except ValueError as err:
+            log.fatal("Genesis timestamp is in the future %s", err)
+        except ConnectionRefusedError as err:
+            log.fatal(err)
+        except Exception as err:
+            log.fatal(err)
 
         # connect to web dashboard server
         self.sio = socketio.Client()
@@ -72,10 +78,12 @@ class Client():
         attr = AttrDict({
             "contact": self.node.contact,
             "id": self.node.id,
-            "addr": self.web_addr,
+            "web_addr": self.web_addr,
+            # "node_addr": self.node.p2p_addr,
             "secret": self.node.secret if self.node.secret != "" else self.secret
         })
         self.sio.register_namespace(APINamespace(self.NAMESPACE, attr))
+
         try:
             self.sio.connect(self.web_addr)
         except socketio.exceptions.ConnectionError as err:

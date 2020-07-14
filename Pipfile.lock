@@ -1,12 +1,10 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "5f1aa029aedd2dd7e3f41c77847baab6515403999d06fb033313433bec8a50b4"
+            "sha256": "f8834cb16a67108df8e895d3e46216b4372d48c44579337a799413a477feb91e"
         },
         "pipfile-spec": 6,
-        "requires": {
-            "python_version": "3.4"
-        },
+        "requires": {},
         "sources": [
             {
                 "name": "pypi",
@@ -152,11 +150,11 @@
         },
         "witnet-lib": {
             "hashes": [
-                "sha256:c30e5989e4b7de64f1e2c6f1e632797016b77d43767aef661c22a99a4408ff8a",
-                "sha256:cf73485423e29d1a3160c05ff28093afddbb1e7bc5d9bc2c3ff314f95249c2f8"
+                "sha256:0f9f396ac636bd9c9084da005aca8537b84287d94f3df89cf385c88f6b7a7441",
+                "sha256:65c43e6dd360823cd8e096e5694089e40b70f89c98ca3cc3c524946e5aef79f1"
             ],
             "index": "pypi",
-            "version": "==0.0.2"
+            "version": "==0.0.3"
         },
         "witpy": {
             "hashes": [
