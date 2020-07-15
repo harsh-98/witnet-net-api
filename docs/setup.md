@@ -43,3 +43,43 @@ pip install pipenv
 pipenv install
 python main.py
 ```
+
+# Enabling https
+
+Using: httpd/apache
+
+```
+/usr/sbin/setsebool -P httpd_can_network_connect 1 #httpd/apache for port forwarding for an application
+```
+
+- httpd:
+  mod_proxy_wstunnel.so mod_proxy mod_proxy_http in /etc/httpd/conf.modules.d/00-base.conf
+- apache:
+
+```
+sudo a2enmod mod_proxy
+sudo a2enmod mod_proxy_http
+sudo a2enmod  mod_proxy_wstunnel
+```
+
+Config:
+
+```
+<VirtualHost *:80>
+  #ProxyPreserveHost On
+  ProxyRequests On
+  ServerName www.witnet.live
+  ServerAlias witnet.live
+  ProxyPass / http://127.0.0.1:3000/
+  ProxyPassReverse / http://127.0.0.1:3000/
+RewriteEngine on
+RewriteCond %{HTTP:UPGRADE} ^WebSocket$ [NC]
+RewriteCond %{HTTP:CONNECTION} ^Upgrade$ [NC]
+RewriteRule .* ws://localhost:3000%{REQUEST_URI} [P]
+</VirtualHost>
+```
+
+Reference:
+
+- https://devops.ionos.com/tutorials/install-and-configure-mod_rewrite-for-apache-on-centos-7/
+- https://stackoverflow.com/questions/17334319/setting-up-a-websocket-on-apache

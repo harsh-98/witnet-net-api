@@ -75,7 +75,8 @@ CONFIG = {
                     "type": "string"
                 },
                 "rpc_addr": {
-                    "type": "string"
+                    "type": "string",
+                    "default": ""
                 },
                 "contact": {
                     "type": "string"

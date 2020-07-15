@@ -72,7 +72,8 @@ class Client():
         self.sio = socketio.Client()
 
         # connect to rpc at rpc_addr
-        self.rpc_client = RPC(self.node.rpc_addr)
+        if self.rpc_enabled():
+            self.rpc_client = RPC(self.node.rpc_addr)
 
     def run_client(self):
         attr = AttrDict({
@@ -92,7 +93,8 @@ class Client():
 
         self.last_rpc_call = datetime.now()
         # get data from witnet node
-        self.rpc_client.connect()
+        if self.rpc_enabled():
+            self.rpc_client.connect()
         self.start_listener_loop()
 
     def rpc_enabled(self):
@@ -102,7 +104,11 @@ class Client():
         while not self.terminate:
             # this returns serialized message from node
             msg = self.connection.tcp_handler.receive_witnet_msg()
-            parsed_msg = self.connection.msg_handler.parse_msg(msg)
+            try:
+                parsed_msg = self.connection.msg_handler.parse_msg(msg)
+            except Exception as err:
+                log.fatal(err)
+                continue
             if parsed_msg.kind.HasField("Block"):
                 log.debug(parsed_msg)
                 self.blockchain.add_block(parsed_msg.kind.Block)
@@ -122,11 +128,11 @@ class Client():
 
             if parsed_msg.kind.HasField("Peers"):
                 self.send_stats(parsed_msg)
-
-            self.rpc_calls()
+            if self.rpc_enabled():
+                self.rpc_calls()
 
     def rpc_calls(self):
-        if (datetime.now() - self.last_rpc_call).seconds > self.node.rpc_interval_sec and self.rpc_enabled():
+        if (datetime.now() - self.last_rpc_call).seconds > self.node.rpc_interval_sec:
             get_peers_cmd = self.connection.msg_handler.get_peers_cmd()
             msg = self.connection.msg_handler.serialize(get_peers_cmd)
             self.connection.tcp_handler.send(msg)
@@ -205,5 +211,6 @@ class Client():
     def close(self):
         log.info("closing")
         self.terminate = True
-        self.rpc_client.close()
+        if self.rpc_enabled():
+            self.rpc_client.close()
         self.sio.disconnect()
