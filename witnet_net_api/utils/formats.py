@@ -85,7 +85,7 @@ CONFIG = {
                     "type": "string",
                     "default": ""
                 },
-                "rpc_interval_sec": {
+                "calls_interval_sec": {
                     "type": "number",
                     "default": 120
                 },

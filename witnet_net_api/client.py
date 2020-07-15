@@ -22,11 +22,13 @@ class APINamespace(socketio.ClientNamespace):
 
     def on_connect(self):
         log.info(f'{self.args.id}: Connecting to [{self.args.web_addr}]')
-        # host, port = resolve_url(self.args.node_addr)
+        ip, port = resolve_url(self.args.p2p_addr)
         info = {
             **INFO_FORMAT,
             "contact": self.args.contact,
             "name": self.args.id,
+            "ip": ip,
+            "port": port
         }
         log.debug(f"Info msg: {info}")
         self.emit("hello", {
@@ -80,7 +82,7 @@ class Client():
             "contact": self.node.contact,
             "id": self.node.id,
             "web_addr": self.web_addr,
-            # "node_addr": self.node.p2p_addr,
+            "p2p_addr": self.node.p2p_addr,
             "secret": self.node.secret if self.node.secret != "" else self.secret
         })
         self.sio.register_namespace(APINamespace(self.NAMESPACE, attr))
@@ -128,26 +130,31 @@ class Client():
 
             if parsed_msg.kind.HasField("Peers"):
                 self.send_stats(parsed_msg)
+
+            self.schedule_calls()
+
+    def schedule_calls(self):
+        if (datetime.now() - self.last_rpc_call).seconds > self.node.calls_interval_sec:
             if self.rpc_enabled():
                 self.rpc_calls()
 
-    def rpc_calls(self):
-        if (datetime.now() - self.last_rpc_call).seconds > self.node.rpc_interval_sec:
             get_peers_cmd = self.connection.msg_handler.get_peers_cmd()
             msg = self.connection.msg_handler.serialize(get_peers_cmd)
             self.connection.tcp_handler.send(msg)
-            # msg = self.rpc_client.known_peers()
-
-            # fetch active pkhs
-            msg = self.rpc_client.active_reputation()
-            self.send_activePkh(msg)
-
-            # get pending tx
-            msg = self.rpc_client.get_mempool()
-            self.send_pending(msg)
 
             # set past for scheduling next rpc calls
             self.last_rpc_call = datetime.now()
+
+    def rpc_calls(self):
+        # msg = self.rpc_client.known_peers()
+
+        # fetch active pkhs
+        msg = self.rpc_client.active_reputation()
+        self.send_activePkh(msg)
+
+        # get pending tx
+        msg = self.rpc_client.get_mempool()
+        self.send_pending(msg)
 
     def send_super_block(self, msg):
         super_block = msg.kind.SuperBlockVote
