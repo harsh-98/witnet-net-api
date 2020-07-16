@@ -5,6 +5,7 @@ from .utils.logger import log
 def get_connection(consensus_constants, node_addr=""):
     # Setting config
     # log.debug(f"Node address: {node_addr}, {consensus_constants.__dict__}")
+    consensus_constants.persistent = True
     client = WitnetClient(consensus_constants)
     client.handshake(node_addr)
     return client

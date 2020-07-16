@@ -2,9 +2,10 @@ from datetime import datetime
 import logging
 import socketio
 from witnet_lib.utils import resolve_url, AttrDict
+
 from witnet_net_api import __version__
 from .connection import get_connection
-from .utils.logger import log
+from .utils.logger import log, get_logger
 from .history.blockchain import Blockchain
 from .rpc_client import RPC
 from .utils.formats import INFO_FORMAT
@@ -21,7 +22,7 @@ class APINamespace(socketio.ClientNamespace):
         super().__init__(namespace)
 
     def on_connect(self):
-        log.info(f'{self.args.id}: Connecting to [{self.args.web_addr}]')
+        log.info('Connecting to [%s]', self.args.web_addr)
         ip, port = resolve_url(self.args.p2p_addr)
         info = {
             **INFO_FORMAT,
@@ -55,6 +56,7 @@ class Client():
         self.secret = secret
         self.last_rpc_call = None
         self.terminate = True
+        self.log = get_logger(self.node.id)
 
         # set blockchain for maintaining  history
         self.blockchain = Blockchain()
@@ -64,11 +66,11 @@ class Client():
                 consensus_constants=consensus_constants, node_addr=self.node.p2p_addr)
             self.terminate = False
         except ValueError as err:
-            log.fatal("Genesis timestamp is in the future %s", err)
+            self.log.fatal("Genesis timestamp is in the future %s", err)
         except ConnectionRefusedError as err:
-            log.fatal(err)
+            self.log.fatal(err)
         except Exception as err:
-            log.fatal(err)
+            self.log.fatal(err)
 
         # connect to web dashboard server
         self.sio = socketio.Client()
@@ -90,7 +92,7 @@ class Client():
         try:
             self.sio.connect(self.web_addr)
         except socketio.exceptions.ConnectionError as err:
-            log.error(err)
+            self.log.error(err)
             return
 
         self.last_rpc_call = datetime.now()
@@ -104,43 +106,49 @@ class Client():
 
     def start_listener_loop(self):
         while not self.terminate:
-            # this returns serialized message from node
-            msg = self.connection.tcp_handler.receive_witnet_msg()
+            # this returns serialized message from node and parses to python obj
+            msg = self.connection.receive_msg()
             try:
                 parsed_msg = self.connection.msg_handler.parse_msg(msg)
             except Exception as err:
-                log.fatal(err)
+                self.log.fatal(err)
                 continue
+
+            if parsed_msg.kind.WhichOneof("kind") in ['SuperBlockVote', 'Block', 'LastBeacon', 'Peers']:
+                self.log.info(
+                    parsed_msg.kind.WhichOneof("kind"))
+
+            # match the kind of the object
             if parsed_msg.kind.HasField("Block"):
-                log.debug(parsed_msg)
+                self.log.debug(parsed_msg)
                 self.blockchain.add_block(parsed_msg.kind.Block)
 
             if parsed_msg.kind.HasField("SuperBlockVote"):
-                log.debug(parsed_msg)
+                self.log.debug(parsed_msg)
                 self.send_super_block(parsed_msg)
-
+            # last beacon takes which block is consolidated to prevent unneccessary forks
             if parsed_msg.kind.HasField("LastBeacon"):
                 checkpoint = parsed_msg.kind.LastBeacon.highest_block_checkpoint
-                # log.debug(parsed_msg)
+                # self.log.debug(parsed_msg)
                 _hash = checkpoint.hash_prev_block.SHA256.hex()
                 epoch = checkpoint.checkpoint
                 block = self.blockchain.get_block(epoch, _hash)
                 if block:
                     self.send_block(block)
-
+            # this targets node to send its peers list
             if parsed_msg.kind.HasField("Peers"):
                 self.send_stats(parsed_msg)
-
+            # for scheduling calls to pull data, above handles push messages from node
             self.schedule_calls()
 
     def schedule_calls(self):
         if (datetime.now() - self.last_rpc_call).seconds > self.node.calls_interval_sec:
             if self.rpc_enabled():
                 self.rpc_calls()
-
+            # currently rpc getPeer is disabled so p2p GETPEERS message is used
             get_peers_cmd = self.connection.msg_handler.get_peers_cmd()
             msg = self.connection.msg_handler.serialize(get_peers_cmd)
-            self.connection.tcp_handler.send(msg)
+            self.connection.send_msg(msg)
 
             # set past for scheduling next rpc calls
             self.last_rpc_call = datetime.now()
@@ -173,7 +181,7 @@ class Client():
             "id": self.node.id,
             "block": block,
         }
-        log.debug(msg)
+        self.log.debug(msg)
         self.sio.emit("block", msg, namespace=self.NAMESPACE)
 
     def send_activePkh(self, active_reputation_set):
@@ -185,7 +193,7 @@ class Client():
             "id": self.node.id,
             "count": active_count,
         }
-        log.debug(msg)
+        self.log.debug(msg)
         self.sio.emit("activePkh", msg, namespace=self.NAMESPACE)
 
     def send_stats(self, msg):
@@ -200,7 +208,7 @@ class Client():
             "id": self.node.id,
             "stats": stats,
         }
-        log.debug(msg)
+        self.log.debug(msg)
         self.sio.emit("stats", msg, namespace=self.NAMESPACE)
 
     def send_pending(self, msg):
@@ -212,12 +220,12 @@ class Client():
             "id": self.node.id,
             "stats": stats,
         }
-        log.info(msg)
+        self.log.info(msg)
         self.sio.emit("pending", msg, namespace=self.NAMESPACE)
 
     def close(self):
-        log.info("closing")
+        self.log.info("closing")
         self.terminate = True
+        self.sio.disconnect()
         if self.rpc_enabled():
             self.rpc_client.close()
-        self.sio.disconnect()
