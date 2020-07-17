@@ -1,13 +1,14 @@
 import json
 from witnet_lib.tcp_handler import TCPSocket
-from .utils.logger import log
+# from .utils.logger import log
 from witpy.util.jsonrpc import Request
 
 
 class RPC():
-    def __init__(self, node_addr):
+    def __init__(self, node_addr, log):
         self.tcp = TCPSocket(node_addr)
         self.node_addr = node_addr
+        self.log = log
 
     def connect(self):
         self.tcp.connect()
@@ -23,14 +24,14 @@ class RPC():
                 decoded += resp.decode("utf-8")
                 decoded = json.loads(decoded)
                 if decoded.get('error', False):
-                    log.fatal(decoded)
+                    self.log.error(decoded)
                     return {}
                 else:
                     return decoded['result']
             except json.decoder.JSONDecodeError as err:
-                log.fatal(err)
+                self.log.warn(err)
             except Exception as err:
-                log.fatal(err)
+                self.log.fatal(err)
                 return
 
     def send(self, method, **params):
@@ -40,7 +41,7 @@ class RPC():
         try:
             self.tcp.send(msg_in_bytes)
         except Exception as err:
-            log.fatal(err)
+            self.log.fatal(err)
 
     def get_mempool(self):
         self.send("getMempool")

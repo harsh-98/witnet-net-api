@@ -59,8 +59,6 @@ def interruptHandler(sig, frame):
     # https://hackernoon.com/threaded-asynchronous-magic-and-how-to-wield-it-bba9ed602c32
     for client in clients:
         client.close()
-    import sys
-    sys.exit(0)
 
 
 signal.signal(signal.SIGINT, interruptHandler)

@@ -1,0 +1,10 @@
+{
+  "apps": [
+    {
+      "name": "witnet-api",
+      "script": "main.py",
+      "args": "-c remote.toml",
+      "log_date_format": "HH:mm"
+    }
+  ]
+}

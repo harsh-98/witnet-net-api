@@ -77,7 +77,7 @@ class Client():
 
         # connect to rpc at rpc_addr
         if self.rpc_enabled():
-            self.rpc_client = RPC(self.node.rpc_addr)
+            self.rpc_client = RPC(self.node.rpc_addr, self.log)
 
     def run_client(self):
         attr = AttrDict({
@@ -140,6 +140,7 @@ class Client():
                 self.send_stats(parsed_msg)
             # for scheduling calls to pull data, above handles push messages from node
             self.schedule_calls()
+        self.connection.close()
 
     def schedule_calls(self):
         if (datetime.now() - self.last_rpc_call).seconds > self.node.calls_interval_sec:
