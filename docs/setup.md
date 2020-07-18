@@ -29,6 +29,12 @@ create a file `ws_secret.json` with `['secret1', 'secret2']`.
 edit `lib/utils/config.json` add `trusted ip` or `banned ip`.
 ```
 
+#### Starting with PM2
+
+```
+pm2 start app.js
+```
+
 ### Backend
 
 Edit create and edit `api.toml` to configure backend.
