@@ -6,15 +6,21 @@ from witpy.util.jsonrpc import Request
 
 class RPC():
     def __init__(self, node_addr, log):
-        self.tcp = TCPSocket(node_addr)
+        self.tcp = None
         self.node_addr = node_addr
         self.log = log
 
     def connect(self):
+        self.tcp = TCPSocket(self.node_addr)
         self.tcp.connect()
 
     def close(self):
         self.tcp.close()
+
+    def is_closed(self):
+        if self.tcp == None or self.tcp.is_closed():
+            return True
+        return False
 
     def receive(self):
         decoded = ""
@@ -23,7 +29,7 @@ class RPC():
                 # fix for infinite in the tcp connection is dropped
                 # as resp is not decoded as json and results in error
                 # and due to exception loop repeats
-                if self.tcp.isClosed():
+                if self.tcp.is_closed():
                     return {}
                 resp, _ = self.tcp.receive()
                 decoded += resp.decode("utf-8")
@@ -31,6 +37,8 @@ class RPC():
                 if decoded.get('error', False):
                     self.log.error(decoded)
                     return {}
+                # elif decoded.get("message", False):
+                #     return decoded.get("message")
                 else:
                     return decoded['result']
             except json.decoder.JSONDecodeError as err:

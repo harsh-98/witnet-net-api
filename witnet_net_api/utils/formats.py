@@ -78,16 +78,8 @@ CONFIG = {
                     "type": "string",
                     "default": ""
                 },
-                "retry_after": {
-                    "type": "number",
-                    "default": 0,
-                },
                 "contact": {
                     "type": "string"
-                },
-                "secret": {
-                    "type": "string",
-                    "default": ""
                 },
                 "calls_interval_sec": {
                     "type": "number",
@@ -96,6 +88,23 @@ CONFIG = {
             },
             "required": [
                 "p2p_addr", "id"
+            ]
+        },
+        "common": {
+            "type": "object",
+            "secret": {
+                "type": "string",
+                "default": ""
+            },
+            "web_addr": {
+                "type": "string"
+            },
+            "retry_after": {
+                "type": "number",
+                "default": 10,
+            },
+            "required": [
+                "web_addr",
             ]
         }
     },
@@ -108,21 +117,18 @@ CONFIG = {
                 "$ref": "#/definitions/node"
             }
         },
-        "secret": {
-            "type": "string",
-            "default": ""
+        "common": {
+            "$ref": "#/definitions/common"
         },
         "consensus_constants": {
             "$ref": "#/definitions/consensus_constants"
         },
-        "web_addr": {
-            "type": "string"
-        },
+
     },
     "required": [
         "nodes",
-        "consensus_constants",
-        "web_addr",
+        "common",
+        "consensus_constants"
     ],
 }
 
