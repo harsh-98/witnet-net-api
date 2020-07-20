@@ -1,8 +1,8 @@
 from argparse import ArgumentParser, FileType
 import signal
 import sys
-import threading
-
+# import threading
+import multiprocessing
 from .client import Client
 from .utils.logger import log
 from .utils.utils import load_config
@@ -59,6 +59,11 @@ def interruptHandler(sig, frame):
     # https://hackernoon.com/threaded-asynchronous-magic-and-how-to-wield-it-bba9ed602c32
     for client in clients:
         client.close()
+    # import pdb
+    # pdb.Pdb().set_trace(frame)
+    #     jobs.append(
+    #         asyncio.ensure_future(client.close()))
+    # loop.run_until_complete(asyncio.gather(*jobs))
 
 
 signal.signal(signal.SIGINT, interruptHandler)
@@ -67,13 +72,28 @@ signal.signal(signal.SIGINT, interruptHandler)
 def start(args):
     args.config = load_config(args.config)
     threads = []
+    number_of_p = len(args.config.nodes)
+
+    # due to fork safety in mac os
+    # Error:
+    # may have been in progress in another thread when fork() was called.
+    # We cannot safely call it or ignore it in the fork() child process.
+    # Crashing instead. Set a breakpoint on objc_initializeAfterForkError to debug.
+
+    # https://www.tutorialspoint.com/concurrency_in_python/concurrency_in_python_multiprocessing.htm
+    # https://stackoverflow.com/questions/3033952/threading-pool-similar-to-the-multiprocessing-pool
+    # prevention
+    # export  OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+
     for node in args.config.nodes:
-        threads.append(threading.Thread(
+        threads.append(multiprocessing.Process(
             target=start_client, args=(args.config, node)))
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
+    log.info("Exit All!!")
+    sys.exit(0)
 
 
 if __name__ == "__main__":

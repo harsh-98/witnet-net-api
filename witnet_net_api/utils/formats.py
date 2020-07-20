@@ -78,6 +78,10 @@ CONFIG = {
                     "type": "string",
                     "default": ""
                 },
+                "retry_after": {
+                    "type": "number",
+                    "default": 0,
+                },
                 "contact": {
                     "type": "string"
                 },
