@@ -20,6 +20,11 @@ class RPC():
         decoded = ""
         while True:
             try:
+                # fix for infinite in the tcp connection is dropped
+                # as resp is not decoded as json and results in error
+                # and due to exception loop repeats
+                if self.tcp.isClosed():
+                    return {}
                 resp, _ = self.tcp.receive()
                 decoded += resp.decode("utf-8")
                 decoded = json.loads(decoded)

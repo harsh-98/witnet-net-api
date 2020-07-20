@@ -1,5 +1,6 @@
 from datetime import datetime
 import logging
+import time
 import socketio
 from witnet_lib.utils import resolve_url, AttrDict
 
@@ -16,13 +17,14 @@ logging.getLogger('witnet_lib').setLevel(logging.ERROR)
 
 
 class APINamespace(socketio.ClientNamespace):
-    def __init__(self, namespace, args):
+    def __init__(self, namespace, _log, args):
         self.namespace = namespace
         self.args = args
+        self.log = _log
         super().__init__(namespace)
 
     def on_connect(self):
-        log.info('Connecting to [%s]', self.args.web_addr)
+        self.log.info('Connecting to [%s]', self.args.web_addr)
         ip, port = resolve_url(self.args.p2p_addr)
         info = {
             **INFO_FORMAT,
@@ -31,7 +33,7 @@ class APINamespace(socketio.ClientNamespace):
             "ip": ip,
             "port": port
         }
-        log.debug(f"Info msg: {info}")
+        self.log.debug(f"Info msg: {info}")
         self.emit("hello", {
             "id": self.args.id,
             "secret": self.args.secret,
@@ -39,7 +41,8 @@ class APINamespace(socketio.ClientNamespace):
         }, namespace=self.namespace)
 
     def on_disconnect(self):
-        log.info(f'{self.args.id}: Disconnecting from [{self.args.web_addr}]')
+        self.log.info(
+            f'{self.args.id}: Disconnecting from [{self.args.web_addr}]')
 
     def on_data(self, data):
         pass
@@ -55,29 +58,41 @@ class Client():
         self.web_addr = web_addr
         self.secret = secret
         self.last_rpc_call = None
-        self.terminate = True
+        self.terminate = False
         self.log = get_logger(self.node.id)
+        self.consensus_constants = consensus_constants
 
         # set blockchain for maintaining  history
         self.blockchain = Blockchain()
-        # connect to node at p2p port
-        try:
-            self.connection = get_connection(
-                consensus_constants=consensus_constants, node_addr=self.node.p2p_addr)
-            self.terminate = False
-        except ValueError as err:
-            self.log.fatal("Genesis timestamp is in the future %s", err)
-        except ConnectionRefusedError as err:
-            self.log.fatal(err)
-        except Exception as err:
-            self.log.fatal(err)
 
         # connect to web dashboard server
         self.sio = socketio.Client()
 
+        # get the p2p connection for the first time
+        self.get_connections()
+
         # connect to rpc at rpc_addr
         if self.rpc_enabled():
             self.rpc_client = RPC(self.node.rpc_addr, self.log)
+
+    # Tried to use schedule lib for checking if the connection is present or not
+    # after retry_after seconds but it is not required.
+    # since that requires running a loop too.
+    def get_connections(self):
+        # connect to node at p2p port
+        if not self.is_p2p_valid():
+            try:
+                self.connection = get_connection(
+                    consensus_constants=self.consensus_constants, node_addr=self.node.p2p_addr)
+            except ValueError as err:
+                self.log.fatal("Genesis timestamp is in the future %s", err)
+            except ConnectionRefusedError as err:
+                self.log.fatal(err)
+            except Exception as err:
+                self.log.fatal(err)
+
+    def is_p2p_valid(self):
+        return (hasattr(self, 'connection') and not self.connection.isClosed())
 
     def run_client(self):
         attr = AttrDict({
@@ -87,7 +102,11 @@ class Client():
             "p2p_addr": self.node.p2p_addr,
             "secret": self.node.secret if self.node.secret != "" else self.secret
         })
-        self.sio.register_namespace(APINamespace(self.NAMESPACE, attr))
+        try:
+            self.sio.register_namespace(
+                APINamespace(self.NAMESPACE, self.log, attr))
+        except Exception as err:
+            self.log.fatal("Namespace registration error: %s", err)
 
         try:
             self.sio.connect(self.web_addr)
@@ -107,40 +126,52 @@ class Client():
     def start_listener_loop(self):
         while not self.terminate:
             # this returns serialized message from node and parses to python obj
-            msg = self.connection.receive_msg()
-            try:
-                parsed_msg = self.connection.msg_handler.parse_msg(msg)
-            except Exception as err:
-                self.log.fatal(err)
-                continue
+            if self.is_p2p_valid():
+                msg = self.connection.receive_msg()
+                try:
+                    parsed_msg = self.connection.msg_handler.parse_msg(msg)
+                except Exception as err:
+                    self.log.fatal(err)
+                    continue
 
-            if parsed_msg.kind.WhichOneof("kind") in ['SuperBlockVote', 'Block', 'LastBeacon', 'Peers']:
-                self.log.info(
-                    parsed_msg.kind.WhichOneof("kind"))
+                if parsed_msg.kind.WhichOneof("kind") in ['SuperBlockVote', 'Block', 'LastBeacon', 'Peers']:
+                    self.log.info(
+                        parsed_msg.kind.WhichOneof("kind"))
 
-            # match the kind of the object
-            if parsed_msg.kind.HasField("Block"):
-                self.log.debug(parsed_msg)
-                self.blockchain.add_block(parsed_msg.kind.Block)
+                # match the kind of the object
+                if parsed_msg.kind.HasField("Block"):
+                    self.log.debug(parsed_msg)
+                    self.blockchain.add_block(parsed_msg.kind.Block)
 
-            if parsed_msg.kind.HasField("SuperBlockVote"):
-                self.log.debug(parsed_msg)
-                self.send_super_block(parsed_msg)
-            # last beacon takes which block is consolidated to prevent unneccessary forks
-            if parsed_msg.kind.HasField("LastBeacon"):
-                checkpoint = parsed_msg.kind.LastBeacon.highest_block_checkpoint
-                # self.log.debug(parsed_msg)
-                _hash = checkpoint.hash_prev_block.SHA256.hex()
-                epoch = checkpoint.checkpoint
-                block = self.blockchain.get_block(epoch, _hash)
-                if block:
-                    self.send_block(block)
-            # this targets node to send its peers list
-            if parsed_msg.kind.HasField("Peers"):
-                self.send_stats(parsed_msg)
-            # for scheduling calls to pull data, above handles push messages from node
-            self.schedule_calls()
-        self.connection.close()
+                if parsed_msg.kind.HasField("SuperBlockVote"):
+                    self.log.debug(parsed_msg)
+                    self.send_super_block(parsed_msg)
+                # last beacon takes which block is consolidated to prevent unneccessary forks
+                if parsed_msg.kind.HasField("LastBeacon"):
+                    checkpoint = parsed_msg.kind.LastBeacon.highest_block_checkpoint
+                    # self.log.debug(parsed_msg)
+                    _hash = checkpoint.hash_prev_block.SHA256.hex()
+                    epoch = checkpoint.checkpoint
+                    block = self.blockchain.get_block(epoch, _hash)
+                    if block:
+                        self.send_block(block)
+                # this targets node to send its peers list
+                if parsed_msg.kind.HasField("Peers"):
+                    self.send_stats(parsed_msg)
+                self.schedule_calls()
+            else:
+                if self.node.retry_after == 0:
+                    return
+                self.log.info("Retrying in %d seconds", self.node.retry_after)
+                time.sleep(self.node.retry_after)
+                self.get_connections()
+                # for scheduling calls to pull data, above handles push messages from node
+
+        # it might happen that connection is not created if the connection is refused via p2p port
+        # so check if self has connection attribute
+        if self.is_p2p_valid():
+            self.connection.close()
+        self.log.info("Closing p2p connection")
 
     def schedule_calls(self):
         if (datetime.now() - self.last_rpc_call).seconds > self.node.calls_interval_sec:
@@ -175,7 +206,7 @@ class Client():
             "id": self.node.id,
             "super": reduced_super_block
         }
-        self.sio.emit("superBlock", msg, namespace=self.NAMESPACE)
+        self.emit_event("superBlock", msg)
 
     def send_block(self, block):
         msg = {
@@ -183,7 +214,13 @@ class Client():
             "block": block,
         }
         self.log.debug(msg)
-        self.sio.emit("block", msg, namespace=self.NAMESPACE)
+        self.emit_event("block", msg)
+
+    def emit_event(self, event_name, msg):
+        try:
+            self.sio.emit(event_name, msg, namespace=self.NAMESPACE)
+        except Exception as err:
+            self.log.fatal(err)
 
     def send_activePkh(self, active_reputation_set):
         active_count = 0
@@ -195,7 +232,7 @@ class Client():
             "count": active_count,
         }
         self.log.debug(msg)
-        self.sio.emit("activePkh", msg, namespace=self.NAMESPACE)
+        self.emit_event("activePkh", msg)
 
     def send_stats(self, msg):
         stats = {
@@ -210,7 +247,7 @@ class Client():
             "stats": stats,
         }
         self.log.debug(msg)
-        self.sio.emit("stats", msg, namespace=self.NAMESPACE)
+        self.emit_event("stats", msg)
 
     def send_pending(self, msg):
         stats = {
@@ -222,11 +259,19 @@ class Client():
             "stats": stats,
         }
         self.log.info(msg)
-        self.sio.emit("pending", msg, namespace=self.NAMESPACE)
+        self.emit_event("pending", msg)
+
+    # async def close(self):
 
     def close(self):
         self.log.info("closing")
         self.terminate = True
-        self.sio.disconnect()
+        # if rpc is specified in api.toml for
         if self.rpc_enabled():
             self.rpc_client.close()
+
+        # connection with dsahboard
+        try:
+            self.sio.disconnect()
+        except Exception as err:
+            self.log.fatal(err)
