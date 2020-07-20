@@ -194,6 +194,9 @@ class Client():
         self.close_connections()
 
     def get_uptime(self):
+        denom = (datetime.now() - self.start_time).seconds
+        if denom == 0:
+            return 100
         uptime_percent = (1 - self.inactive_duration /
                           (datetime.now() - self.start_time).seconds)*100
         return uptime_percent
@@ -212,7 +215,7 @@ class Client():
         # so check if self has connection attribute
         if self.is_p2p_valid():
             self.connection.close()
-        self.log.info("Closing p2p connection")
+        self.log.warning("Closing p2p connection")
 
     def schedule_calls(self):
         if (datetime.now() - self.last_rpc_call).seconds > self.node.calls_interval_sec:
@@ -236,13 +239,15 @@ class Client():
         msg = self.rpc_client.active_reputation()
         if isinstance(msg, str):
             self.send_stats({"mining": False, "syncing": True})
-        self.send_activePkh(msg)
+        else:
+            self.send_activePkh(msg)
 
         # get pending tx
         msg = self.rpc_client.get_mempool()
         if isinstance(msg, str):
             self.send_stats({"mining": False, "syncing": True})
-        self.send_pending(msg)
+        else:
+            self.send_pending(msg)
 
     def send_super_block(self, msg):
         super_block = msg.kind.SuperBlockVote
@@ -297,6 +302,9 @@ class Client():
         stats = {
             "peers": len(msg.kind.Peers.peers),
             "active": self.active,
+            "uptime": self.get_uptime(),
+            "syncing": False,
+            "mining": True,
         }
         self.send_stats(stats)
 
@@ -325,3 +333,4 @@ class Client():
     def close(self):
         self.log.info("closing")
         self.terminate = True
+        self.close_connections()

@@ -60,6 +60,8 @@ def interruptHandler(sig, frame):
     # https://hackernoon.com/threaded-asynchronous-magic-and-how-to-wield-it-bba9ed602c32
     for client in clients:
         client.close()
+    if len(clients) > 0:
+        sys.exit(0)
     # https://stackoverflow.com/questions/27751198/what-is-the-difference-between-next-and-until-in-pdb
     # https://www.digitalocean.com/community/tutorials/how-to-use-the-python-debugger
     # until, next and step

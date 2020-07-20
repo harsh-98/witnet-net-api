@@ -42,10 +42,10 @@ class RPC():
                 else:
                     return decoded['result']
             except json.decoder.JSONDecodeError as err:
-                self.log.warn(err)
+                self.log.warning(err)
             except Exception as err:
                 self.log.fatal(err)
-                return
+                return {}
 
     def send(self, method, **params):
         req = Request(method, **params)
