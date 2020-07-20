@@ -1,5 +1,7 @@
+[common]
 web_addr = 'http://localhost:3000'
 secret = ""
+retry_afer = 120
 
 [consensus_constants]
 genesis_sec = 1594717200
@@ -9,7 +11,6 @@ time_per_epoch = 45
 
 [[nodes]]
 p2p_addr = "127.0.0.1:21337"
-retry_after =  120
 id = "node-one"
 rpc_addr = "127.0.0.1:21338"
 contact = ""

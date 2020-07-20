@@ -9,11 +9,12 @@ from .utils.utils import load_config
 
 
 def main():
-    try:
-        _do_main()
-    except Exception as err:
-        log.fatal(err)
-        sys.exit(1)
+    _do_main()
+    # try:
+
+    # except Exception as err:
+    #     log.fatal(err)
+    #     sys.exit(1)
 
 
 def _do_main():
@@ -46,7 +47,7 @@ clients = []
 def start_client(cfg, node):
     # TODO FIX
     # try:
-    client = Client(web_addr=cfg.web_addr, secret=cfg.secret,
+    client = Client(common=cfg.common,
                     consensus_constants=cfg.consensus_constants, node=node)
     clients.append(client)
     client.run_client()
@@ -59,6 +60,9 @@ def interruptHandler(sig, frame):
     # https://hackernoon.com/threaded-asynchronous-magic-and-how-to-wield-it-bba9ed602c32
     for client in clients:
         client.close()
+    # https://stackoverflow.com/questions/27751198/what-is-the-difference-between-next-and-until-in-pdb
+    # https://www.digitalocean.com/community/tutorials/how-to-use-the-python-debugger
+    # until, next and step
     # import pdb
     # pdb.Pdb().set_trace(frame)
     #     jobs.append(
@@ -72,7 +76,7 @@ signal.signal(signal.SIGINT, interruptHandler)
 def start(args):
     args.config = load_config(args.config)
     threads = []
-    number_of_p = len(args.config.nodes)
+    # number_of_p = len(args.config.nodes)
 
     # due to fork safety in mac os
     # Error:
@@ -87,9 +91,13 @@ def start(args):
 
     for node in args.config.nodes:
         threads.append(multiprocessing.Process(
+            # threads.append(threading.Thread(
             target=start_client, args=(args.config, node)))
     for thread in threads:
         thread.start()
+        # by setting deamon True on the exit of main process
+        # subprocess will be killed
+        thread.deamon = True
     for thread in threads:
         thread.join()
     log.info("Exit All!!")

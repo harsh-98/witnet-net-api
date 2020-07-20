@@ -51,12 +51,13 @@ class APINamespace(socketio.ClientNamespace):
 class Client():
     NAMESPACE = "/api"
 
-    def __init__(self, web_addr="", secret="", consensus_constants=None, node=None):
+    def __init__(self, common=None, consensus_constants=None, node=None):
         log.debug(node.__dict__)
         self.node = node
 
-        self.web_addr = web_addr
-        self.secret = secret
+        self.web_addr = common.web_addr
+        self.secret = common.secret
+        self.retry_after = common.retry_after
         self.last_rpc_call = None
         self.terminate = False
         self.log = get_logger(self.node.id)
@@ -68,7 +69,7 @@ class Client():
         # connect to web dashboard server
         self.sio = socketio.Client()
 
-        # get the p2p connection for the first time
+        # get the p2p and dashboard connection for the first time
         self.get_connections()
 
         # connect to rpc at rpc_addr
@@ -79,6 +80,10 @@ class Client():
     # after retry_after seconds but it is not required.
     # since that requires running a loop too.
     def get_connections(self):
+        self.p2p_connection()
+        self.dashboard_connection()
+
+    def p2p_connection(self):
         # connect to node at p2p port
         if not self.is_p2p_valid():
             try:
@@ -92,33 +97,39 @@ class Client():
                 self.log.fatal(err)
 
     def is_p2p_valid(self):
-        return (hasattr(self, 'connection') and not self.connection.isClosed())
+        return (hasattr(self, 'connection') and not self.connection.is_closed())
+
+    def dashboard_connection(self):
+        self.log.info("Dashboard connection status %s", self.sio.connected)
+        if not self.sio.connected:
+            attr = AttrDict({
+                "contact": self.node.contact,
+                "id": self.node.id,
+                "web_addr": self.web_addr,
+                "p2p_addr": self.node.p2p_addr,
+                "secret": self.secret
+            })
+            try:
+                self.sio.register_namespace(
+                    APINamespace(self.NAMESPACE, self.log, attr))
+            except Exception as err:
+                self.log.fatal("Namespace registration error: %s", err)
+
+            try:
+                self.sio.connect(self.web_addr)
+            except socketio.exceptions.ConnectionError as err:
+                self.log.error(err)
 
     def run_client(self):
-        attr = AttrDict({
-            "contact": self.node.contact,
-            "id": self.node.id,
-            "web_addr": self.web_addr,
-            "p2p_addr": self.node.p2p_addr,
-            "secret": self.node.secret if self.node.secret != "" else self.secret
-        })
-        try:
-            self.sio.register_namespace(
-                APINamespace(self.NAMESPACE, self.log, attr))
-        except Exception as err:
-            self.log.fatal("Namespace registration error: %s", err)
-
-        try:
-            self.sio.connect(self.web_addr)
-        except socketio.exceptions.ConnectionError as err:
-            self.log.error(err)
-            return
-
         self.last_rpc_call = datetime.now()
+        # connect to rpc port of node
+        self.rpc_connection()
         # get data from witnet node
-        if self.rpc_enabled():
-            self.rpc_client.connect()
         self.start_listener_loop()
+
+    def rpc_connection(self):
+        if self.rpc_enabled() and self.rpc_client.is_closed():
+            self.rpc_client.connect()
 
     def rpc_enabled(self):
         return len(self.node.rpc_addr) > 0
@@ -126,7 +137,7 @@ class Client():
     def start_listener_loop(self):
         while not self.terminate:
             # this returns serialized message from node and parses to python obj
-            if self.is_p2p_valid():
+            if self.is_p2p_valid() and self.sio.connected:
                 msg = self.connection.receive_msg()
                 try:
                     parsed_msg = self.connection.msg_handler.parse_msg(msg)
@@ -160,13 +171,26 @@ class Client():
                     self.send_stats(parsed_msg)
                 self.schedule_calls()
             else:
-                if self.node.retry_after == 0:
+                if self.retry_after == 0:
                     return
-                self.log.info("Retrying in %d seconds", self.node.retry_after)
-                time.sleep(self.node.retry_after)
+                self.log.info("Retrying in %d seconds", self.retry_after)
+                time.sleep(self.retry_after)
                 self.get_connections()
                 # for scheduling calls to pull data, above handles push messages from node
 
+        # close rpc, dashboard sio and p2p connections
+        self.close_connections()
+
+    def close_connections(self):
+        # if rpc is specified in api.toml for
+        if self.rpc_enabled():
+            self.rpc_client.close()
+
+        # close connection with dashboard
+        try:
+            self.sio.disconnect()
+        except Exception as err:
+            self.log.fatal(err)
         # it might happen that connection is not created if the connection is refused via p2p port
         # so check if self has connection attribute
         if self.is_p2p_valid():
@@ -187,6 +211,9 @@ class Client():
 
     def rpc_calls(self):
         # msg = self.rpc_client.known_peers()
+
+        # if the connection is terminated get a new connections
+        self.rpc_connection()
 
         # fetch active pkhs
         msg = self.rpc_client.active_reputation()
@@ -223,6 +250,8 @@ class Client():
             self.log.fatal(err)
 
     def send_activePkh(self, active_reputation_set):
+        if active_reputation_set == None:
+            return
         active_count = 0
         for _, rep in active_reputation_set.items():
             if rep[0] > 0 and rep[1]:
@@ -266,12 +295,3 @@ class Client():
     def close(self):
         self.log.info("closing")
         self.terminate = True
-        # if rpc is specified in api.toml for
-        if self.rpc_enabled():
-            self.rpc_client.close()
-
-        # connection with dsahboard
-        try:
-            self.sio.disconnect()
-        except Exception as err:
-            self.log.fatal(err)
