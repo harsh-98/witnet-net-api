@@ -60,6 +60,9 @@ class Client():
         self.retry_after = common.retry_after
         self.last_rpc_call = None
         self.terminate = False
+        self.start_time = datetime.now()
+        self.active = False
+        self.inactive_duration = 0
         self.log = get_logger(self.node.id)
         self.consensus_constants = consensus_constants
 
@@ -138,6 +141,9 @@ class Client():
         while not self.terminate:
             # this returns serialized message from node and parses to python obj
             if self.is_p2p_valid() and self.sio.connected:
+                # if the p2p connection is valid
+                # update active and send the stats to frontend
+                self.send_active_and_uptime(True)
                 msg = self.connection.receive_msg()
                 try:
                     parsed_msg = self.connection.msg_handler.parse_msg(msg)
@@ -168,18 +174,29 @@ class Client():
                         self.send_block(block)
                 # this targets node to send its peers list
                 if parsed_msg.kind.HasField("Peers"):
-                    self.send_stats(parsed_msg)
+                    self.send_peers(parsed_msg)
                 self.schedule_calls()
             else:
                 if self.retry_after == 0:
                     return
+
                 self.log.info("Retrying in %d seconds", self.retry_after)
                 time.sleep(self.retry_after)
+                # p2p connection is not valid then node is inactive
+                # updatetime inactive duration
+                if not self.is_p2p_valid():
+                    self.inactive_duration += self.retry_after
+                    self.send_active_and_uptime(False)
                 self.get_connections()
                 # for scheduling calls to pull data, above handles push messages from node
 
         # close rpc, dashboard sio and p2p connections
         self.close_connections()
+
+    def get_uptime(self):
+        uptime_percent = (1 - self.inactive_duration /
+                          (datetime.now() - self.start_time).seconds)*100
+        return uptime_percent
 
     def close_connections(self):
         # if rpc is specified in api.toml for
@@ -217,10 +234,14 @@ class Client():
 
         # fetch active pkhs
         msg = self.rpc_client.active_reputation()
+        if isinstance(msg, str):
+            self.send_stats({"mining": False, "syncing": True})
         self.send_activePkh(msg)
 
         # get pending tx
         msg = self.rpc_client.get_mempool()
+        if isinstance(msg, str):
+            self.send_stats({"mining": False, "syncing": True})
         self.send_pending(msg)
 
     def send_super_block(self, msg):
@@ -263,17 +284,26 @@ class Client():
         self.log.debug(msg)
         self.emit_event("activePkh", msg)
 
-    def send_stats(self, msg):
+    def send_active_and_uptime(self, active):
+        if active != self.active:
+            self.active = active
+            stats = {
+                "uptime": self.get_uptime(),
+                "active": self.active
+            }
+            self.send_stats(stats)
+
+    def send_peers(self, msg):
         stats = {
             "peers": len(msg.kind.Peers.peers),
-            "active": True,
-            "mining": True,
-            "syncing": False,
-            "uptime": 100,
+            "active": self.active,
         }
+        self.send_stats(stats)
+
+    def send_stats(self, msg):
         msg = {
             "id": self.node.id,
-            "stats": stats,
+            "stats": msg,
         }
         self.log.debug(msg)
         self.emit_event("stats", msg)
