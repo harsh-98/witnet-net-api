@@ -32,6 +32,14 @@ class RPC():
                 if self.tcp.is_closed():
                     return {}
                 resp, _ = self.tcp.receive()
+                new_bytes = resp.decode("utf-8")
+                # this works in conjunction with json.decoder.JSONDecodeError
+                # it the new_bytes is of zero length we might stuck infinite loop
+                # this is not required as the tcp.is_closed will return as
+                # if receice() returns b'' witnet_lib terminates the connection itself
+                # will extra fail_safe check
+                if len(new_bytes) == 0:
+                    return {}
                 decoded += resp.decode("utf-8")
                 decoded = json.loads(decoded)
                 if decoded.get('error', False):

@@ -47,6 +47,9 @@ class APINamespace(socketio.ClientNamespace):
     def on_data(self, data):
         pass
 
+    def on_error(self, err):
+        self.log.error("APINamespace %s", err)
+
 
 class Client():
     NAMESPACE = "/api"
@@ -177,6 +180,7 @@ class Client():
                     self.send_peers(parsed_msg)
                 self.schedule_calls()
             else:
+                # return if the retry_after value is zero
                 if self.retry_after == 0:
                     return
 

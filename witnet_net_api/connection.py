@@ -8,6 +8,8 @@ def get_connection(consensus_constants, node_addr=""):
 
     # not required to set persistent
     # as client implements a checker to reconnect after `retry_after` seconds
+    # but if the connection is resetted we can retry immidiately will
+    # persistent connections
     consensus_constants.persistent = True
 
     client = WitnetClient(consensus_constants)
