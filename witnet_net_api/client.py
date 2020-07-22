@@ -183,14 +183,14 @@ class Client():
                 # return if the retry_after value is zero
                 if self.retry_after == 0:
                     return
-
-                self.log.info("Retrying in %d seconds", self.retry_after)
-                time.sleep(self.retry_after)
                 # p2p connection is not valid then node is inactive
                 # updatetime inactive duration
                 if not self.is_p2p_valid():
                     self.inactive_duration += self.retry_after
                     self.send_active_and_uptime(False)
+
+                self.log.info("Retrying in %d seconds", self.retry_after)
+                time.sleep(self.retry_after)
                 self.get_connections()
                 # for scheduling calls to pull data, above handles push messages from node
 
@@ -203,7 +203,7 @@ class Client():
             return 100
         uptime_percent = (1 - self.inactive_duration /
                           (datetime.now() - self.start_time).seconds)*100
-        return uptime_percent
+        return uptime_percent if uptime_percent > 0 else 0
 
     def close_connections(self):
         # if rpc is specified in api.toml for
@@ -241,14 +241,14 @@ class Client():
 
         # fetch active pkhs
         msg = self.rpc_client.active_reputation()
-        if isinstance(msg, str):
+        if msg.get('message') and msg.get('code', 1) < 0:
             self.send_stats({"mining": False, "syncing": True})
         else:
             self.send_activePkh(msg)
 
         # get pending tx
         msg = self.rpc_client.get_mempool()
-        if isinstance(msg, str):
+        if msg.get('message') and msg.get('code', 1) < 0:
             self.send_stats({"mining": False, "syncing": True})
         else:
             self.send_pending(msg)
@@ -294,7 +294,10 @@ class Client():
         self.emit_event("activePkh", msg)
 
     def send_active_and_uptime(self, active):
-        if active != self.active:
+        # if active is false
+        # or there is state change
+        # send active and uptime stats
+        if active != self.active or not active:
             self.active = active
             stats = {
                 "uptime": self.get_uptime(),

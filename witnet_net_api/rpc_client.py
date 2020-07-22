@@ -44,9 +44,9 @@ class RPC():
                 decoded = json.loads(decoded)
                 if decoded.get('error', False):
                     self.log.error(decoded)
-                    return {}
-                elif decoded.get("message", False):
-                    return decoded.get("message")
+                    return decoded.get('error')
+                # elif decoded.get("message", False):
+                #     return decoded.get("message")
                 else:
                     return decoded['result']
             except json.decoder.JSONDecodeError as err:

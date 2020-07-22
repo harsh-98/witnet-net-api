@@ -83,3 +83,34 @@ Reference:
 
 - https://devops.ionos.com/tutorials/install-and-configure-mod_rewrite-for-apache-on-centos-7/
 - https://stackoverflow.com/questions/17334319/setting-up-a-websocket-on-apache
+
+## On mac os sierra or above
+
+Set below to allow the code to fork the main process, with multiprocessing.
+
+```
+export  OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+```
+
+## Debugging close_wait sockets
+
+Mac OS:
+
+```
+netstat -np tcp -f inet
+```
+
+n is for using number ip and not resolving the ips.
+p for protocol.
+f for the address family.
+
+Linux :
+
+```
+netstat -apnt | grep :21337
+```
+
+a for active
+n for not resolving ips.
+t for tcp.
+p for proess details
