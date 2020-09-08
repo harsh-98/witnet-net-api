@@ -3,7 +3,7 @@
     {
       "name": "witnet-api",
       "script": "main.py",
-      "args": "-c remote.toml",
+      "args": "-c api.toml",
       "log_date_format": "HH:mm"
     }
   ]

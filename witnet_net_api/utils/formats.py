@@ -32,7 +32,7 @@ INFO_FORMAT = {
     "name": "",
     "contact": "",
     "coinbase": None,
-    "node": "0.9.1",
+    "node": "0.9.3",
     "net": None,
     "os": platform.system(),
     "os_v": platform.release(),
